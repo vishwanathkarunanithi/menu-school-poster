@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Logic AI</title>
+    <style>
+        /* CSS: Styling for Mobile/MIT App View */
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            text-align: center;
+            padding: 20px;
+            user-select: none;
+        }
+        h2 { color: #00d4ff; margin-bottom: 10px; }
+        
+        .container {
+            background-color: #2d2d2d;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        /* Dropdown Style */
+        select {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 20px;
+            background-color: #333;
+            color: white;
+            border: 2px solid #00d4ff;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        /* Input Toggle Switches */
+        .input-group {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+        }
+        .input-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .btn-toggle {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: none;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 5px;
+        }
+        .btn-off { background-color: #ff4444; color: white; box-shadow: 0 0 10px #ff4444; }
+        .btn-on { background-color: #00ff00; color: black; box-shadow: 0 0 15px #00ff00; }
+        
+        /* Clock Button (Pulse) */
+        .clk-btn {
+            background-color: #ffcc00;
+            color: black;
+            width: 100%;
+            padding: 10px;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            cursor: pointer;
+            display: none; /* Hidden by default */
+        }
+        .clk-btn:active { transform: scale(0.95); }
+
+        /* Output Display */
+        .output-box {
+            background-color: #000;
+            border: 2px solid #555;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 10px;
+        }
+        .led {
+            height: 30px;
+            width: 30px;
+            border-radius: 50%;
+            background-color: #333;
+            display: inline-block;
+            margin: 0 10px;
+            border: 2px solid #555;
+        }
+        .led-on { background-color: #00d4ff; box-shadow: 0 0 20px #00d4ff; }
+        
+        .state-text { font-size: 14px; color: #aaa; margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>Logic AI Simulator</h2>
+        
+        <select id="componentSelect" onchange="updateUI()">
+            <option value="AND">AND Gate</option>
+            <option value="OR">OR Gate</option>
+            <option value="NOT">NOT Gate</option>
+            <option value="SR">SR Flip-Flop</option>
+            <option value="JK">JK Flip-Flop</option>
+            <option value="D">D Flip-Flop</option>
+            <option value="T">T Flip-Flop</option>
+        </select>
+
+        <div class="input-group">
+            <div class="input-box" id="inputA-box">
+                <label id="labelA">Input A</label>
+                <button id="btnA" class="btn-toggle btn-off" onclick="toggle('A')">0</button>
+            </div>
+            
+            <div class="input-box" id="inputB-box">
+                <label id="labelB">Input B</label>
+                <button id="btnB" class="btn-toggle btn-off" onclick="toggle('B')">0</button>
+            </div>
+        </div>
+
+        <button id="clkBtn" class="clk-btn" onclick="triggerClock()">TRIGGER CLOCK (PULSE)</button>
+
+        <div class="output-box">
+            <div>
+                <span>Q: </span><div id="ledQ" class="led"></div>
+                <span id="textQ">0</span>
+            </div>
+            <div id="qBarContainer" style="display:none; margin-top:10px;">
+                <span>Q': </span><div id="ledQBar" class="led"></div>
+                <span id="textQBar">1</span>
+            </div>
+            <div id="statusText" class="state-text">Select a component</div>
+        </div>
+    </div>
+
+    <script>
+        // -- The "AI" Logic Engine --
+        
+        let state = { A: 0, B: 0, Q: 0 }; // Q stores the memory state for Flip Flops
+
+        function toggle(input) {
+            // Flip the input value (0 -> 1 or 1 -> 0)
+            state[input] = state[input] === 0 ? 1 : 0;
+            
+            // Update Button visuals
+            const btn = document.getElementById('btn' + input);
+            if(state[input] === 1) {
+                btn.className = "btn-toggle btn-on";
+                btn.innerText = "1";
+            } else {
+                btn.className = "btn-toggle btn-off";
+                btn.innerText = "0";
+            }
+
+            // If it's a combinational gate (AND/OR/NOT), calculate immediately
+            // If it's a Flip Flop, wait for Clock trigger
+            const type = document.getElementById('componentSelect').value;
+            if (['AND', 'OR', 'NOT'].includes(type)) {
+                calculateLogic();
+            }
+        }
+
+        function updateUI() {
+            const type = document.getElementById('componentSelect').value;
+            const labelA = document.getElementById('labelA');
+            const labelB = document.getElementById('labelB');
+            const boxB = document.getElementById('inputB-box');
+            const clkBtn = document.getElementById('clkBtn');
+            const qBar = document.getElementById('qBarContainer');
+            const status = document.getElementById('statusText');
+
+            // Reset Input States
+            state.A = 0; state.B = 0; state.Q = 0; // Reset Memory on change
+            document.getElementById('btnA').className = "btn-toggle btn-off"; document.getElementById('btnA').innerText = "0";
+            document.getElementById('btnB').className = "btn-toggle btn-off"; document.getElementById('btnB').innerText = "0";
+
+            // Configure UI based on component
+            if (type === 'NOT') {
+                boxB.style.display = 'none';
+                labelA.innerText = 'Input';
+                clkBtn.style.display = 'none';
+                qBar.style.display = 'none';
+                status.innerText = "Inverts the input";
+            } else if (['AND', 'OR'].includes(type)) {
+                boxB.style.display = 'flex';
+                labelA.innerText = 'Input A';
+                labelB.innerText = 'Input B';
+                clkBtn.style.display = 'none';
+                qBar.style.display = 'none';
+                status.innerText = "Combinational Logic";
+            } else {
+                // Flip Flops
+                clkBtn.style.display = 'block';
+                qBar.style.display = 'block'; // Show Q'
+                boxB.style.display = 'flex';
+                
+                if (type === 'SR') { labelA.innerText = 'S (Set)'; labelB.innerText = 'R (Reset)'; }
+                if (type === 'JK') { labelA.innerText = 'J'; labelB.innerText = 'K'; }
+                if (type === 'D') { 
+                    labelA.innerText = 'D (Data)'; 
+                    boxB.style.display = 'none'; // D only has 1 input
+                }
+                if (type === 'T') { 
+                    labelA.innerText = 'T (Toggle)'; 
+                    boxB.style.display = 'none'; 
+                }
+                status.innerText = "Set inputs, then click CLOCK";
+            }
+            updateOutputDisplay();
+        }
+
+        function calculateLogic() {
+            const type = document.getElementById('componentSelect').value;
+            const A = state.A;
+            const B = state.B;
+
+            if (type === 'AND') state.Q = (A && B) ? 1 : 0;
+            if (type === 'OR') state.Q = (A || B) ? 1 : 0;
+            if (type === 'NOT') state.Q = (!A) ? 1 : 0;
+            
+            updateOutputDisplay();
+        }
+
+        function triggerClock() {
+            const type = document.getElementById('componentSelect').value;
+            const A = state.A; // Represents S, J, D, or T
+            const B = state.B; // Represents R or K
+            let currentQ = state.Q;
+            let msg = "";
+
+            // Sequential Logic (Memory)
+            if (type === 'SR') {
+                if (A===0 && B===0) { msg = "No Change"; }
+                else if (A===0 && B===1) { currentQ = 0; msg = "Reset"; }
+                else if (A===1 && B===0) { currentQ = 1; msg = "Set"; }
+                else if (A===1 && B===1) { currentQ = 0; msg = "Invalid State"; } // or indeterminate
+            }
+            else if (type === 'JK') {
+                if (A===0 && B===0) { msg = "No Change"; }
+                else if (A===0 && B===1) { currentQ = 0; msg = "Reset"; }
+                else if (A===1 && B===0) { currentQ = 1; msg = "Set"; }
+                else if (A===1 && B===1) { currentQ = currentQ === 0 ? 1 : 0; msg = "Toggle"; }
+            }
+            else if (type === 'D') {
+                currentQ = A; // Q follows D
+                msg = A === 1 ? "Store 1" : "Store 0";
+            }
+            else if (type === 'T') {
+                if (A===1) { currentQ = currentQ === 0 ? 1 : 0; msg = "Toggle"; }
+                else { msg = "No Change"; }
+            }
+
+            state.Q = currentQ;
+            document.getElementById('statusText').innerText = "State: " + msg;
+            updateOutputDisplay();
+        }
+
+        function updateOutputDisplay() {
+            const ledQ = document.getElementById('ledQ');
+            const textQ = document.getElementById('textQ');
+            const ledQBar = document.getElementById('ledQBar');
+            const textQBar = document.getElementById('textQBar');
+
+            // Update Q
+            if (state.Q === 1) {
+                ledQ.className = "led led-on";
+                textQ.innerText = "1";
+            } else {
+                ledQ.className = "led";
+                textQ.innerText = "0";
+            }
+
+            // Update Q' (Inverse of Q)
+            if (state.Q === 0) {
+                ledQBar.className = "led led-on";
+                textQBar.innerText = "1";
+            } else {
+                ledQBar.className = "led";
+                textQBar.innerText = "0";
+            }
+        }
+
+        // Initialize
+        updateUI();
+    </script>
+</body>
+</html>
